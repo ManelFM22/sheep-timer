@@ -98,11 +98,11 @@ export default function SheepTimer() {
   const [timeLeft, setTimeLeft] = useState(0)
   const [running, setRunning] = useState(false)
   const [sheep, setSheep] = useState(0)
-  const [done, setDone] = useState(false)
   const [side, setSide] = useState<Side>('left')
   const [jumping, setJumping] = useState(false)
   const [pendingReset, setPendingReset] = useState(false)
   const [pendingStart, setPendingStart] = useState(false)
+  const [done, setDone] = useState(false)
   const [hovered, setHovered] = useState<string | null>(null)
 
   const timerRef = useRef<NodeJS.Timeout | null>(null)
@@ -116,40 +116,36 @@ export default function SheepTimer() {
   const pendingStartRef = useRef(false)
   const pendingStartDurationRef = useRef(0)
   const videoRef = useRef<HTMLVideoElement | null>(null)
+  const imgLeftRef = useRef<HTMLImageElement | null>(null)
+  const imgRightRef = useRef<HTMLImageElement | null>(null)
 
   const duration = hours * 3600 + mins * 60 + secs
+
+  // Actualiza zIndex de imágenes directamente en DOM — sin pasar por React
+  function setIdleFrame(s: Side) {
+    if (imgLeftRef.current)  imgLeftRef.current.style.zIndex  = s === 'left'  ? '2' : '1'
+    if (imgRightRef.current) imgRightRef.current.style.zIndex = s === 'right' ? '2' : '1'
+  }
 
   const doJump = useCallback(() => {
     if (!activeRef.current) return
     jumpingRef.current = true
     pendingJumpRef.current = false
+    // Vídeo sube a zIndex 3
+    if (videoRef.current) videoRef.current.style.zIndex = '3'
     setJumping(true)
   }, [])
-
-  function executeStart(dur: number) {
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
-    elapsedRef.current = 0
-    durationRef.current = dur
-    jumpingRef.current = false
-    pendingJumpRef.current = false
-    pendingResetRef.current = false
-    pendingStartRef.current = false
-    activeRef.current = true
-    setSheep(0)
-    setDone(false)
-    setPendingReset(false)
-    setPendingStart(false)
-    setTimeLeft(dur)
-    setJumping(false)
-    setTimeout(() => {
-      setRunning(true)
-      doJump()
-    }, 16)
-  }
 
   function handleVideoEnded() {
     const nextSide: Side = sideRef.current === 'left' ? 'right' : 'left'
     sideRef.current = nextSide
+
+    // 1. Imagen correcta al frente — DOM directo, sin esperar React
+    setIdleFrame(nextSide)
+    // 2. Vídeo detrás
+    if (videoRef.current) videoRef.current.style.zIndex = '1'
+
+    // 3. Ahora sí actualizamos React state
     setSide(nextSide)
     jumpingRef.current = false
     setSheep(s => s + 1)
@@ -192,11 +188,8 @@ export default function SheepTimer() {
       const remaining = durationRef.current - elapsed
       setTimeLeft(remaining)
       if (elapsed % 5 === 0) {
-        if (!jumpingRef.current) {
-          doJump()
-        } else {
-          pendingJumpRef.current = true
-        }
+        if (!jumpingRef.current) doJump()
+        else pendingJumpRef.current = true
       }
       if (remaining <= 0) {
         clearInterval(timerRef.current!)
@@ -211,6 +204,27 @@ export default function SheepTimer() {
       if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
     }
   }, [running, doJump])
+
+  function executeStart(dur: number) {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null }
+    elapsedRef.current = 0
+    durationRef.current = dur
+    jumpingRef.current = false
+    pendingJumpRef.current = false
+    pendingResetRef.current = false
+    pendingStartRef.current = false
+    activeRef.current = true
+    setSheep(0)
+    setDone(false)
+    setPendingReset(false)
+    setPendingStart(false)
+    setTimeLeft(dur)
+    setJumping(false)
+    setTimeout(() => {
+      setRunning(true)
+      doJump()
+    }, 16)
+  }
 
   function start() {
     if (duration === 0) return
@@ -255,7 +269,6 @@ export default function SheepTimer() {
     }
   }
 
-  const idleSrc = side === 'left' ? '/sheep/FrameA.png' : '/sheep/FrameC.png'
   const videoSrc = side === 'left' ? '/sheep/jump-left.mp4' : '/sheep/jump-right.mp4'
 
   function formatTime(s: number) {
@@ -283,16 +296,9 @@ export default function SheepTimer() {
 
   return (
     <main style={{
-      fontFamily: 'monospace',
-      maxWidth: 640,
-      margin: '0 auto',
-      padding: '1.5rem 1rem',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      gap: 16,
-      boxSizing: 'border-box',
-      width: '100%',
+      fontFamily: 'monospace', maxWidth: 640, margin: '0 auto',
+      padding: '1.5rem 1rem', display: 'flex', flexDirection: 'column',
+      alignItems: 'center', gap: 16, boxSizing: 'border-box', width: '100%',
     }}>
       <h1 style={{ margin: 0, fontSize: 22 }}>🐑 Sheep Timer</h1>
 
@@ -309,36 +315,40 @@ export default function SheepTimer() {
         <ScrollColumn values={SECS} selected={secs} onChange={setSecs} label="seg" />
       </div>
 
-      <div style={{ fontSize: 20, letterSpacing: 3, color: done ? '#e53' : '#333' }}>
-        {running ? formatTime(timeLeft) : '00:00:00'
-        }
+      <div style={{ fontSize: 20, letterSpacing: 3, color: '#333' }}>
+        {running ? formatTime(timeLeft) : '00:00:00'}
       </div>
 
       <div style={{
-        width: '100%',
-        aspectRatio: '16/9',
-        position: 'relative',
-        overflow: 'hidden',
-        borderRadius: 12,
-        background: '#87CEEB',
-        flexShrink: 0,
+        width: '100%', aspectRatio: '16/9', position: 'relative',
+        overflow: 'hidden', borderRadius: 12, background: '#87CEEB', flexShrink: 0,
       }}>
         <img
-          src={idleSrc} alt="sheep idle"
+          ref={imgLeftRef}
+          src="/sheep/FrameA.png"
+          alt="sheep left"
           style={{
             position: 'absolute', top: 0, left: 0,
-            width: '100%', height: '100%',
-            objectFit: 'fill',
-            display: !jumping ? 'block' : 'none',
+            width: '100%', height: '100%', objectFit: 'fill',
+            zIndex: 2,
+          }}
+        />
+        <img
+          ref={imgRightRef}
+          src="/sheep/FrameC.png"
+          alt="sheep right"
+          style={{
+            position: 'absolute', top: 0, left: 0,
+            width: '100%', height: '100%', objectFit: 'fill',
+            zIndex: 1,
           }}
         />
         <video
           key={videoSrc} ref={videoRef}
           style={{
             position: 'absolute', top: 0, left: 0,
-            width: '100%', height: '100%',
-            objectFit: 'fill',
-            display: jumping ? 'block' : 'none',
+            width: '100%', height: '100%', objectFit: 'fill',
+            zIndex: 1,
           }}
           onEnded={handleVideoEnded}
           playsInline muted preload="auto"
@@ -348,30 +358,19 @@ export default function SheepTimer() {
       </div>
 
       <div style={{ display: 'flex', gap: 12, width: '100%' }}>
-        <button
-          onClick={start}
-          disabled={isStartDisabled}
+        <button onClick={start} disabled={isStartDisabled}
           style={getBtn('start', running || pendingStart, isStartDisabled)}
-          onMouseEnter={() => setHovered('start')}
-          onMouseLeave={() => setHovered(null)}
-        >
+          onMouseEnter={() => setHovered('start')} onMouseLeave={() => setHovered(null)}>
           Start
         </button>
-        <button
-          onClick={reset}
+        <button onClick={reset}
           style={getBtn('reset', false, false)}
-          onMouseEnter={() => setHovered('reset')}
-          onMouseLeave={() => setHovered(null)}
-        >
+          onMouseEnter={() => setHovered('reset')} onMouseLeave={() => setHovered(null)}>
           Reset
         </button>
-        <button
-          onClick={handleManualJump}
-          disabled={isJumpDisabled}
+        <button onClick={handleManualJump} disabled={isJumpDisabled}
           style={getBtn('jump', jumping, isJumpDisabled)}
-          onMouseEnter={() => setHovered('jump')}
-          onMouseLeave={() => setHovered(null)}
-        >
+          onMouseEnter={() => setHovered('jump')} onMouseLeave={() => setHovered(null)}>
           Jump 🐑
         </button>
       </div>
