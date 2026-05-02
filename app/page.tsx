@@ -310,9 +310,7 @@ export default function SheepTimer() {
       </div>
 
       <div style={{ fontSize: 20, letterSpacing: 3, color: done ? '#e53' : '#333' }}>
-        {done
-          ? `✅ Done! ${sheep} sheep jumped`
-          : running ? formatTime(timeLeft) : '00:00:00'
+        {running ? formatTime(timeLeft) : '00:00:00'
         }
       </div>
 
